@@ -1,0 +1,4 @@
+resources:
+  - bucket-watcher-dpl.yml
+  - doctr-dpl.yml
+  - doctr-svc.yml

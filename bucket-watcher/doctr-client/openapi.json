@@ -1,0 +1,216 @@
+{
+  "openapi": "3.0.2",
+  "info": {
+    "title": "docTR API template",
+    "description": "Template API for Optical Character Recognition",
+    "version": "0.6.0a0"
+  },
+  "paths": {
+    "/recognition/": {
+      "post": {
+        "tags": ["recognition"],
+        "summary": "Perform text recognition",
+        "description": "Runs docTR text recognition model to analyze the input image",
+        "operationId": "text_recognition_recognition__post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_text_recognition_recognition__post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RecognitionOut" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/detection/": {
+      "post": {
+        "tags": ["detection"],
+        "summary": "Perform text detection",
+        "description": "Runs docTR text detection model to analyze the input image",
+        "operationId": "text_detection_detection__post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_text_detection_detection__post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Text Detection Detection  Post",
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/DetectionOut" }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ocr/": {
+      "post": {
+        "tags": ["ocr"],
+        "summary": "Perform OCR",
+        "description": "Runs docTR OCR model to analyze the input image",
+        "operationId": "perform_ocr_ocr__post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_perform_ocr_ocr__post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Perform Ocr Ocr  Post",
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/OCROut" }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Body_perform_ocr_ocr__post": {
+        "title": "Body_perform_ocr_ocr__post",
+        "required": ["file"],
+        "type": "object",
+        "properties": {
+          "file": { "title": "File", "type": "string", "format": "binary" }
+        }
+      },
+      "Body_text_detection_detection__post": {
+        "title": "Body_text_detection_detection__post",
+        "required": ["file"],
+        "type": "object",
+        "properties": {
+          "file": { "title": "File", "type": "string", "format": "binary" }
+        }
+      },
+      "Body_text_recognition_recognition__post": {
+        "title": "Body_text_recognition_recognition__post",
+        "required": ["file"],
+        "type": "object",
+        "properties": {
+          "file": { "title": "File", "type": "string", "format": "binary" }
+        }
+      },
+      "DetectionOut": {
+        "title": "DetectionOut",
+        "required": ["box"],
+        "type": "object",
+        "properties": {
+          "box": {
+            "title": "Box",
+            "type": "array",
+            "items": { "type": "number" },
+            "minItems": 4,
+            "maxItems": 4
+          }
+        }
+      },
+      "HTTPValidationError": {
+        "title": "HTTPValidationError",
+        "type": "object",
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ValidationError" }
+          }
+        }
+      },
+      "OCROut": {
+        "title": "OCROut",
+        "required": ["box", "value"],
+        "type": "object",
+        "properties": {
+          "box": {
+            "title": "Box",
+            "type": "array",
+            "items": { "type": "number" },
+            "minItems": 4,
+            "maxItems": 4
+          },
+          "value": { "title": "Value", "type": "string", "example": "Hello" }
+        }
+      },
+      "RecognitionOut": {
+        "title": "RecognitionOut",
+        "required": ["value"],
+        "type": "object",
+        "properties": {
+          "value": { "title": "Value", "type": "string", "example": "Hello" }
+        }
+      },
+      "ValidationError": {
+        "title": "ValidationError",
+        "required": ["loc", "msg", "type"],
+        "type": "object",
+        "properties": {
+          "loc": {
+            "title": "Location",
+            "type": "array",
+            "items": { "anyOf": [{ "type": "string" }, { "type": "integer" }] }
+          },
+          "msg": { "title": "Message", "type": "string" },
+          "type": { "title": "Error Type", "type": "string" }
+        }
+      }
+    }
+  }
+}
