@@ -1,0 +1,10 @@
+{
+  "name": "ocr-results",
+  "location": "US-EAST1",
+  "storageClass": "STANDARD",
+  "iamConfiguration": {
+    "uniformBucketLevelAccess": {
+      "enabled": true
+    }
+  }
+}

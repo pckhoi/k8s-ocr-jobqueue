@@ -1,0 +1,51 @@
+services:
+  gcs:
+    image: fsouza/fake-gcs-server
+    ports:
+      - 4443
+    command: -scheme http
+    volumes:
+      - type: tmpfs
+        target: /data
+  gcs_initializer:
+    build:
+      context: .
+      dockerfile: bash.Dockerfile
+    depends_on:
+      - gcs
+    volumes:
+      - ./fixtures:/fixtures
+    command: >
+      -Eeuo pipefail -c 'curl -X POST --data-binary @/fixtures/ocr_docs_bucket.json \
+        -H "Content-Type: application/json" \
+        "http:/gcs:4443/storage/v1/b?project=test" \
+      && curl -X POST --data-binary @/fixtures/ocr_results_bucket.json \
+        -H "Content-Type: application/json" \
+        "http:/gcs:4443/storage/v1/b?project=test" \
+      && curl -X POST --data-binary @/fixtures/doc1.pdf \
+        -H "Content-Type: application/pdf" \
+        "http:/gcs:4443/upload/storage/v1/b/ocr-docs/o?uploadType=media&name=doc1.pdf"'
+  doctr:
+    build:
+      context: .
+      dockerfile: doctr.Dockerfile
+    depends_on:
+      gcs_initializer:
+        condition: service_completed_successfully
+    volumes:
+      - ./jobqueue.py:/jobqueue.py
+    environment:
+      FAKE_GCS_SERVER: http://gcs:4443
+      PROJECT_ID: test
+      SOURCE_BUCKET: ocr-docs
+      POLL_INTERVAL: '1'
+      SINK_BUCKET: ocr-results
+  tester:
+    build:
+      context: .
+      dockerfile: bash.Dockerfile
+    depends_on:
+      - doctr
+    volumes:
+      - ./test-script.sh:/test-script.sh
+    command: /test-script.sh http://gcs:4443 ocr-docs ocr-results
