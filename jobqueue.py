@@ -1,5 +1,6 @@
+import base64
 import logging
-import sys
+import logging.config
 import json
 import os
 import re
@@ -13,12 +14,26 @@ from google.api_core.exceptions import PreconditionFailed
 from doctr.io import DocumentFile
 from doctr.models import ocr_predictor
 
-logging.basicConfig(
-    stream=sys.stdout,
-    format="%(levelname)s %(asctime)s - %(message)s",
-    level=logging.INFO,
+logging.config.dictConfig(
+    {
+        "version": 1,
+        "formatters": {"long": {"format": "%(levelname)s - %(asctime)s - %(message)s"}},
+        "handlers": {
+            "console": {
+                "class": "logging.StreamHandler",
+                "formatter": "long",
+                "level": "INFO",
+                "stream": "ext://sys.stdout",
+            }
+        },
+        "loggers": {
+            "jq": {"level": "INFO", "handlers": ["console"], "propagate": False}
+        },
+        "incremental": False,
+        "disable_existing_loggers": True,
+    }
 )
-logging.root.handlers[0].setLevel(logging.INFO)
+logger = logging.getLogger("jq")
 
 
 class Ticker:
@@ -72,18 +87,19 @@ class Source:
     def _send(self, blob):
         if not blob.name.endswith(".pdf") or blob.md5_hash in self._md5_set:
             return
-        self._md5_set.add(blob.md5_hash)
-        logging.info("inserting blob %s (%s)" % (json.dumps(blob.name), blob.md5_hash))
+        md5_hash = base64.b64decode(blob.md5_hash).hex()
+        self._md5_set.add(md5_hash)
+        logger.info("inserting blob %s (md5:%s)" % (json.dumps(blob.name), md5_hash))
         self.c.send(blob)
 
     def _fetch_objects(self):
-        logging.info("listing blobs from %s" % json.dumps(self._bucket_name))
+        logger.info("listing blobs from %s" % json.dumps(self._bucket_name))
         blobs = self._client.list_blobs(self._bucket_name)
         for blob in blobs:
             self._send(blob)
 
     def _fetch_updates(self):
-        logging.info("fetching notifications from %s" % json.dumps(self._bucket_name))
+        logger.info("fetching notifications from %s" % json.dumps(self._bucket_name))
         bucket = self._client.bucket(self._bucket_name)
         notifications = bucket.list_notifications()
         for notification in notifications:
@@ -99,7 +115,7 @@ class Source:
         # self._ticker.schedule(self._fetch_updates, self._poll_interval)
 
     def stop(self):
-        logging.info("stopping source")
+        logger.info("stopping source")
         self._t.kill()
         self.c.close()
 
@@ -113,13 +129,14 @@ class Predictor:
     def _run(self):
         predictor = ocr_predictor(pretrained=True)
         for blob in self._blob_chan:
-            logging.info(
-                "processing blob %s (%s)" % (json.dumps(blob.name), blob.md5_hash)
+            md5_hash = base64.b64decode(blob.md5_hash).hex()
+            logger.info(
+                "processing blob %s (md5:%s)" % (json.dumps(blob.name), md5_hash)
             )
             with blob.open("rb") as f:
                 content = f.read()
             doc = DocumentFile.from_pdf(content)
-            self.c.send((blob.md5_hash, predictor(doc)))
+            self.c.send((md5_hash, predictor(doc)))
             stackless.tasklet(blob.delete)()
         self.c.close()
 
@@ -176,7 +193,7 @@ class Sink:
 
     def _run(self):
         for md5_hash, result in self._result_chan:
-            logging.info("saving ocr result %s.json" % md5_hash)
+            logger.info("saving ocr result %s.json" % md5_hash)
             blob = self._client.bucket(self._bucket_name).blob("%s.json" % md5_hash)
             try:
                 blob.upload_from_string(
@@ -224,12 +241,12 @@ if __name__ == "__main__":
     sink = Sink(client, os.environ["SINK_BUCKET"], predictor.c)
 
     def _stop():
-        logging.info("received stop signal, cleaning up")
+        logger.info("received stop signal, cleaning up")
         ticker.stop()
         src.stop()
         while True:
             if not sink.is_alive:
-                logging.info("stopping application")
+                logger.info("stopping application")
                 return
             stackless.schedule()
 
