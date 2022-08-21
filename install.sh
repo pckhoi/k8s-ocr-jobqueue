@@ -13,6 +13,7 @@ Usage: $(basename "${BASH_SOURCE[0]}") [-h] [-v]
     project_id input_bucket output_bucket
     [-s service_account]
     [-n namespace]
+    [-p poll_interval]
 Install an OCR jobqueue based on DocTR in your K8s cluster
 Available options:
 -h, --help              Print this help and exit
@@ -22,6 +23,8 @@ Available options:
                         to 'k8s-ocr-jobqueue'
 -n, --namespace         Kubernetes namespace to install this jobqueue,
                         defaults to 'k8s-ocr-jobqueue'
+-p, --poll-interval     Number of seconds to wait before job queue poll
+                        for updates, defaults to 300
 EOF
   exit
 }
@@ -64,6 +67,7 @@ parse_params() {
   output_bucket=''
   service_account='k8s-ocr-jobqueue'
   namespace='k8s-ocr-jobqueue'
+  poll_interval=300
 
   while :; do
 case "${1-}" in
@@ -78,6 +82,10 @@ case "${1-}" in
   namespace="${2-}"
   shift
   ;;
+-p | --poll-interval)
+  poll_interval="${2-}"
+  shift
+  ;;
 -?*) die "Unknown option: " ;;
 *) break ;;
 esac
@@ -87,6 +95,7 @@ shift
   args=("$@")
 
   # check required params and arguments
+  ! [[ $poll_interval =~ '^[1-9][0-9]*$' ]] && die "poll_interval must be integer"
   [[ ${#args[@]} -ne 3 ]] && die "Wrong number of script arguments"
 
   project_id="${args[0]}"
@@ -147,7 +156,8 @@ apply_k8s_resources() {
   kustomize edit add configmap doctr-config \
     --from-literal=PROJECT_ID=$project_id \
     --from-literal=SOURCE_BUCKET=$input_bucket \
-    --from-literal=SINK_BUCKET=$output_bucket
+    --from-literal=SINK_BUCKET=$output_bucket \
+    --from-literal=POLL_INTERVAL=$poll_interval
   kustomize edit add secret service-account-key --from-file=key.json=$key_file
   kustomize build . | kubectl apply -f -
   echo 'OCR resources installed in namespace "'$namespace'"'

@@ -88,7 +88,7 @@ class Source:
         if not blob.name.endswith(".pdf") or blob.md5_hash in self._md5_set:
             return
         md5_hash = base64.b64decode(blob.md5_hash).hex()
-        self._md5_set.add(md5_hash)
+        self._md5_set.add(blob.md5_hash)
         logger.info("inserting blob %s (md5:%s)" % (json.dumps(blob.name), md5_hash))
         self.c.send(blob)
 
@@ -112,7 +112,7 @@ class Source:
 
     def _run(self):
         self._fetch_objects()
-        # self._ticker.schedule(self._fetch_updates, self._poll_interval)
+        self._ticker.schedule(self._fetch_updates, self._poll_interval)
 
     def stop(self):
         logger.info("stopping source")
@@ -136,7 +136,7 @@ class Predictor:
             with blob.open("rb") as f:
                 content = f.read()
             doc = DocumentFile.from_pdf(content)
-            self.c.send((md5_hash, predictor(doc)))
+            self.c.send((blob.name, predictor(doc)))
             stackless.tasklet(blob.delete)()
         self.c.close()
 
@@ -192,9 +192,9 @@ class Sink:
         self._t()
 
     def _run(self):
-        for md5_hash, result in self._result_chan:
-            logger.info("saving ocr result %s.json" % md5_hash)
-            blob = self._client.bucket(self._bucket_name).blob("%s.json" % md5_hash)
+        for name, result in self._result_chan:
+            logger.info("saving ocr result %s.json" % name)
+            blob = self._client.bucket(self._bucket_name).blob("%s.json" % name)
             try:
                 blob.upload_from_string(
                     json.dumps(serialize_document(result)),

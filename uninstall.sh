@@ -11,21 +11,20 @@ usage() {
 Usage: $(basename "${BASH_SOURCE[0]}") [-h] [-v]
     project_id
     [-i input_bucket]
-    [-o output_bucket
+    [-o output_bucket]
     [-s service_account]
     [-n namespace]
 Uninstall OCR job queue
 Available options:
 -h, --help              Print this help and exit
 -v, --verbose           Print script debug info
--i, --input-bucket      Also remove input bucket which was created during
-                        installation. Note that this also delete all data.
--o, --output-bucket     Also remove output bucket which was created during
-                        installation. Note that this also delete all data.
--s, --service-account   Service account that was created
-                        to read and write to buckets, defaults
-                        to 'k8s-ocr-jobqueue'
--n, --namespace         Kubernetes namespace that was used during install,
+-i, --input-bucket      Remove input bucket. Note that this also
+                        delete all data.
+-o, --output-bucket     Remove output bucket. Note that this also
+                        delete all data.
+-s, --service-account   Service account created to read and write to buckets,
+                        defaults to 'k8s-ocr-jobqueue'
+-n, --namespace         Kubernetes namespace that houses the jobqueue,
                         defaults to 'k8s-ocr-jobqueue'
 EOF
   exit
