@@ -118,35 +118,35 @@ download_assets() {
 
 create_buckets() {
   echo "Creating buckets..."
-	gsutil mb -p $project_id gs://$input_bucket
-	gsutil mb -p $project_id gs://$output_bucket
-	gsutil iam ch allUsers:objectViewer gs://$output_bucket
-	gsutil notification create \
-		-t $input_bucket -f json \
-		-e OBJECT_FINALIZE gs://$input_bucket
+  gsutil mb -p $project_id gs://$input_bucket
+  gsutil mb -p $project_id gs://$output_bucket
+  gsutil iam ch allUsers:objectViewer gs://$output_bucket
+  gsutil notification create \
+    -t $input_bucket -f json \
+    -e OBJECT_FINALIZE gs://$input_bucket
 }
 
 create_service_account() {
   echo "Creating service account..."
   key_file=key.json
-	gcloud iam service-accounts create $service_account \
-		--description="Read/write OCR data to storage buckets" \
-		--display-name="OCR docs admin" \
-		--project $project_id
-	gcloud projects add-iam-policy-binding $project_id \
-		--member="serviceAccount:$service_account@$project_id.iam.gserviceaccount.com" \
-		--role="roles/pubsub.subscriber"
-	gcloud projects add-iam-policy-binding $project_id \
-		--member="serviceAccount:$service_account@$project_id.iam.gserviceaccount.com" \
-		--role="roles/storage.objectAdmin"
-	gcloud iam service-accounts keys create $key_file \
-		--iam-account=$service_account@$project_id.iam.gserviceaccount.com
+  gcloud iam service-accounts create $service_account \
+    --description="Read/write OCR data to storage buckets" \
+    --display-name="OCR docs admin" \
+    --project $project_id
+  gcloud projects add-iam-policy-binding $project_id \
+    --member="serviceAccount:$service_account@$project_id.iam.gserviceaccount.com" \
+    --role="roles/pubsub.subscriber"
+  gsutil iam ch \
+    serviceAccount:$service_account@$project_id.iam.gserviceaccount.com:admin \
+    gs://$input_bucket gs://$output_bucket
+  gcloud iam service-accounts keys create $key_file \
+    --iam-account=$service_account@$project_id.iam.gserviceaccount.com
 }
 
 push_image() {
   echo "Pushing image..."
-	docker build -t doctr image
-	img_id=$(docker images --format '{{.ID}}' doctr:latest)
+  docker build -t doctr image
+  img_id=$(docker images --format '{{.ID}}' doctr:latest)
   docker tag doctr:latest gcr.io/$project_id/doctr:$img_id
   docker push gcr.io/$project_id/doctr:$img_id
 }

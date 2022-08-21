@@ -105,8 +105,8 @@ shift
 }
 
 uninstall() {
-    kubectl delete namespace $namespace
-    gcloud iam service-accounts delete -y \
+    kubectl delete namespace $namespace --ignore-not-found=true
+    gcloud iam service-accounts delete --quiet \
         $service_account@$project_id.iam.gserviceaccount.com
     [[ ! -z "$input_bucket" ]] \
         && gsutil notification delete gs://$input_bucket \

@@ -58,3 +58,24 @@ uninstall.sh [-h] [-v] [-i INPUT_BUCKET] [-o OUTPUT_BUCKET]
 | --service-account | -s         | Service account created to read and write to buckets, defaults to 'k8s-ocr-jobqueue' |
 | --namespace       | -n         | Kubernetes namespace that houses the jobqueue, defaults to 'k8s-ocr-jobqueue'        |
 | PROJECT_ID        |            | Google Cloud project id to remove the job queue from                                 |
+
+## Check job queue status
+
+```bash
+$ kubectl get pod -n k8s-ocr-jobqueue -w
+NAME                     READY   STATUS    RESTARTS   AGE
+doctr-677955b7bd-b4xzv   1/1     Running   3          25m
+
+$ kubectl logs -n k8s-ocr-jobqueue doctr-677955b7bd-b4xzv -f
+INFO - 2022-08-21 11:11:46,342 - listing blobs from "k8s-ocr-jobqueue-input-bucket"
+INFO - 2022-08-21 11:11:46,525 - inserting blob "raw_minutes/carencro/cfpcsb/Agenda-Oct2012-CSB-mtg.pdf" (md5:17ec09dc9e6c05372a2ecf62ec1634fc)
+/usr/local/lib/python3.7/site-packages/torchvision/models/_utils.py:136: UserWarning: Using 'weights' as positional parameter(s) is deprecated since 0.13 and will be removed in 0.15. Please use keyword parameter(s) instead.
+  f"Using {sequence_to_str(tuple(keyword_only_kwargs.keys()), separate_last='and ')} as positional "
+/usr/local/lib/python3.7/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and will be removed in 0.15. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+INFO - 2022-08-21 11:11:50,407 - processing blob "raw_minutes/carencro/cfpcsb/Agenda-Oct2012-CSB-mtg.pdf" (md5:17ec09dc9e6c05372a2ecf62ec1634fc)
+INFO - 2022-08-21 11:12:05,641 - saving ocr result raw_minutes/carencro/cfpcsb/Agenda-Oct2012-CSB-mtg.pdf.json
+INFO - 2022-08-21 11:12:05,828 - inserting blob "raw_minutes/carencro/cfpcsb/Appeal-Posting-Notice-Conrad-Callegari-May-7-2019.pdf" (md5:3d4e3e42c8efcd97274fbdc5a6cd56e2)
+INFO - 2022-08-21 11:12:05,829 - processing blob "raw_minutes/carencro/cfpcsb/Appeal-Posting-Notice-Conrad-Callegari-May-7-2019.pdf" (md5:3d4e3e42c8efcd97274fbdc5a6cd56e2)
+...
+```
