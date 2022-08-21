@@ -10,10 +10,8 @@ declare -a executables=("gcloud" "gsutil" "kustomize" "docker" "curl" "kubectl")
 usage() {
   cat <<EOF
 Usage: $(basename "${BASH_SOURCE[0]}") [-h] [-v]
+    [-s service_account] [-n namespace] [-p poll_interval]
     project_id input_bucket output_bucket
-    [-s service_account]
-    [-n namespace]
-    [-p poll_interval]
 Install an OCR jobqueue based on DocTR in your K8s cluster
 Available options:
 -h, --help              Print this help and exit
@@ -31,7 +29,7 @@ EOF
 
 cleanup() {
   trap - SIGINT SIGTERM ERR EXIT
-  # script cleanup here
+  [[ -n "$tmp_dir"  ]] && cd && rm -rf $tmp_dir
 }
 
 setup_colors() {
@@ -47,10 +45,10 @@ msg() {
 }
 
 die() {
-  local msg=
-  local code=${2-1} # default exit status 1
-  msg "msg"
-  exit "code"
+  local msg=$1
+  local code=${2:-1} # default exit status 1
+  msg "Error: $msg"
+  exit "$code"
 }
 
 check_executables() {
@@ -95,8 +93,8 @@ shift
   args=("$@")
 
   # check required params and arguments
-  ! [[ $poll_interval =~ '^[1-9][0-9]*$' ]] && die "poll_interval must be integer"
-  [[ ${#args[@]} -ne 3 ]] && die "Wrong number of script arguments"
+  [[ $poll_interval != +([[:digit:]]) ]] && die "poll_interval must be integer"
+  [[ ${#args[@]} -lt 3 ]] && die "Wrong number of script arguments: ${#args[@]} < 3"
 
   project_id="${args[0]}"
   input_bucket="${args[1]}"
@@ -106,6 +104,7 @@ shift
 }
 
 download_assets() {
+  echo "Downloading assets..."
   tmp_dir=$(mktemp -d -t ci-XXXXXXXXXX)
   cd $tmp_dir
   local assets_dir=installation-assets
@@ -118,6 +117,7 @@ download_assets() {
 }
 
 create_buckets() {
+  echo "Creating buckets..."
 	gsutil mb -p $project_id gs://$input_bucket
 	gsutil mb -p $project_id gs://$output_bucket
 	gsutil iam ch allUsers:objectViewer gs://$output_bucket
@@ -127,6 +127,7 @@ create_buckets() {
 }
 
 create_service_account() {
+  echo "Creating service account..."
   key_file=key.json
 	gcloud iam service-accounts create $service_account \
 		--description="Read/write OCR data to storage buckets" \
@@ -143,29 +144,24 @@ create_service_account() {
 }
 
 push_image() {
+  echo "Pushing image..."
 	docker build -t doctr image
 	img_id=$(docker images --format '{{.ID}}' doctr:latest)
-	docker tag doctr:latest doctr:$img_id
   docker tag doctr:latest gcr.io/$project_id/doctr:$img_id
   docker push gcr.io/$project_id/doctr:$img_id
 }
 
 apply_k8s_resources() {
+  echo "Applying Kubernetes resources..."
   kustomize edit set namespace $namespace
   kustomize edit set image doctr=gcr.io/$project_id/doctr:$img_id
   kustomize edit add configmap doctr-config \
-    --from-literal=PROJECT_ID=$project_id \
     --from-literal=SOURCE_BUCKET=$input_bucket \
     --from-literal=SINK_BUCKET=$output_bucket \
     --from-literal=POLL_INTERVAL=$poll_interval
   kustomize edit add secret service-account-key --from-file=key.json=$key_file
   kustomize build . | kubectl apply -f -
   echo 'OCR resources installed in namespace "'$namespace'"'
-}
-
-cleanup() {
-  cd
-  rm -rf $tmp_dir
 }
 
 parse_params "$@"
@@ -177,9 +173,3 @@ create_buckets
 create_service_account
 push_image
 apply_k8s_resources
-cleanup
-
-msg "REDRead parameters:NOFORMAT"
-msg "- flag: flag"
-msg "- param: param"
-msg "- arguments: ${args[*]-}"

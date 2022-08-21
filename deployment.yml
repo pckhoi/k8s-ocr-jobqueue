@@ -16,11 +16,16 @@ spec:
         - name: doctr
           image: doctr
           env:
-            - name: GOOGLE_AUTH_CREDENTIALS
-              valueFrom:
-                secretKeyRef:
-                  name: service-account-key
-                  key: key.json
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: /etc/service_account/key.json
           envFrom:
             - configMapRef:
                 name: doctr-config
+          volumeMounts:
+            - name: service-account-key
+              mountPath: "/etc/service_account"
+              readOnly: true
+      volumes:
+        - name: service-account-key
+          secret:
+            secretName: service-account-key

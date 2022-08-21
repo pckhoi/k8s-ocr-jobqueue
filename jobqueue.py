@@ -9,6 +9,7 @@ import signal
 
 import stackless
 from requests import Session
+import google.auth
 from google.cloud.storage import Client
 from google.api_core.exceptions import PreconditionFailed
 from doctr.io import DocumentFile
@@ -222,15 +223,16 @@ class FakeServerSession(Session):
 
 if __name__ == "__main__":
     ticker = Ticker()
-    if os.getenv("FAKE_GCS_SERVER") != "":
+    if "FAKE_GCS_SERVER" in os.environ:
         from google.auth.credentials import AnonymousCredentials
 
-        creds = AnonymousCredentials()
+        credentials = AnonymousCredentials()
+        project = os.getenv("PROJECT_ID", "test")
         _http = FakeServerSession(os.environ["FAKE_GCS_SERVER"])
     else:
-        creds = os.environ["GOOGLE_AUTH_CREDENTIALS"]
+        credentials, project = google.auth.default()
         _http = None
-    client = Client(os.environ["PROJECT_ID"], credentials=creds, _http=_http)
+    client = Client(project, credentials=credentials, _http=_http)
     src = Source(
         client,
         ticker,

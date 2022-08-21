@@ -9,11 +9,9 @@ declare -a executables=("gcloud" "gsutil" "kubectl")
 usage() {
   cat <<EOF
 Usage: $(basename "${BASH_SOURCE[0]}") [-h] [-v]
+    [-i input_bucket] [-o output_bucket]
+    [-s service_account] [-n namespace]
     project_id
-    [-i input_bucket]
-    [-o output_bucket]
-    [-s service_account]
-    [-n namespace]
 Uninstall OCR job queue
 Available options:
 -h, --help              Print this help and exit
@@ -48,10 +46,10 @@ msg() {
 }
 
 die() {
-  local msg=
-  local code=${2-1} # default exit status 1
-  msg "msg"
-  exit "code"
+  local msg=$1
+  local code=${2:-1} # default exit status 1
+  msg "Error: $msg"
+  exit "$code"
 }
 
 check_executables() {
@@ -108,7 +106,7 @@ shift
 
 uninstall() {
     kubectl delete namespace $namespace
-    gcloud iam service-accounts delete \
+    gcloud iam service-accounts delete -y \
         $service_account@$project_id.iam.gserviceaccount.com
     [[ ! -z "$input_bucket" ]] \
         && gsutil notification delete gs://$input_bucket \
@@ -122,8 +120,3 @@ check_executables
 setup_colors
 
 uninstall
-
-msg "REDRead parameters:NOFORMAT"
-msg "- flag: flag"
-msg "- param: param"
-msg "- arguments: ${args[*]-}"
