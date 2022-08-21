@@ -9,7 +9,6 @@ on:
 jobs:
   tagged-release:
     name: "Tagged Release"
-    needs: test
     runs-on: "macos-latest"
     steps:
       - name: Install make
