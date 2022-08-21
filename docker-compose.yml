@@ -28,7 +28,6 @@ services:
   doctr:
     build:
       context: .
-      dockerfile: doctr.Dockerfile
     depends_on:
       gcs_initializer:
         condition: service_completed_successfully

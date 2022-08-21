@@ -1,28 +1,25 @@
 BUILD_DIR := build
-MD5_DIR := $(BUILD_DIR)/md5
+ASSETS_DIR := $(BUILD_DIR)/installation-assets
+IMAGE_ASSETS := Dockerfile jobqueue.py requirements.txt
+KUSTOMIZE_ASSETS := kustomization.yml namespace.yml deployment.yml
 
 .PHONY: all
 
-all:
+all: $(BUILD_DIR)/installation-assets.tar.gz $(BUILD_DIR)/uninstall.sh
 
-# calculate md5
-$(MD5_DIR)/%.md5: % | $(MD5_DIR)
+$(ASSETS_DIR)/image/%: % | $(ASSETS_DIR)
 	@-mkdir -p $(dir $@) 2>/dev/null
-	$(if $(filter-out $(shell cat $@ 2>/dev/null),$(shell $(MD5) $<)),$(MD5) $< > $@)
+	cp $< $@
 
-$(BUILD_DIR)/bucket_watcher.d: | $(BUILD_DIR)
-	echo "SOURCES =" > $@
-	echo "$$($(GO) list -deps github.com/pckhoi/k8s-ocr-jobqueue/bucket-watcher | \
-		grep github.com/pckhoi/k8s-ocr-jobqueue/ | \
-		sed -r -e 's/github.com\/pckhoi\/(.+)/\1/g' | \
-		xargs -n 1 -I {} find {} -maxdepth 1 -name '*.go' \! -name '*_test.go' -print | \
-		sed -r -e 's/(.+)/$(subst /,\/,SOURCES += $(MD5_DIR))\/\1.md5/g')" >> $@
-	echo "" >> $@
-	echo "\$$(BUILD_DIR)/bucket_watcher.elf: \$$(MD5_DIR)/go.sum.md5 \$$(SOURCES)" >> $@
-	echo -e "\tCGO_ENABLED=0 GOARCH=amd64 GOOS=linux go build -a -o \$$@ github.com/pckhoi/k8s-ocr-jobqueue/bucket-watcher" >> $@
-	echo "" >> $@
+$(ASSETS_DIR)/%: % | $(ASSETS_DIR)
+	cp $< $@
+	
+$(BUILD_DIR)/installation-assets.tar.gz: $(patsubst %,$(ASSETS_DIR)/image/%,$(IMAGE_ASSETS)) $(patsubst %,$(ASSETS_DIR)/%,$(KUSTOMIZE_ASSETS)) 
+	cd $(BUILD_DIR) && \
+	tar -czvf $(notdir $@) installation-assets
+
+$(BUILD_DIR)/uninstall.sh: uninstall.sh | $(BUILD_DIR)
+	cp $< $@
 
 $(BUILD_DIR): ; @-mkdir $@ 2>/dev/null
-$(MD5_DIR): | $(BUILD_DIR) ; @-mkdir $@ 2>/dev/null
-
-include $(BUILD_DIR)/bucket_watcher.d
+$(ASSETS_DIR): | $(BUILD_DIR) ; @-mkdir $@ 2>/dev/null

@@ -4,31 +4,29 @@ set -Eeuo pipefail
 trap cleanup SIGINT SIGTERM ERR EXIT
 
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)
-version=%%version%%
-declare -a executables=("gcloud" "gsutil" "git")
+declare -a executables=("gcloud" "gsutil" "kubectl")
 
 usage() {
   cat <<EOF
 Usage: $(basename "${BASH_SOURCE[0]}") [-h] [-v]
+    project_id
     [-i input_bucket]
-    [-o output_bucket]
+    [-o output_bucket
     [-s service_account]
-    -p project_id
-    {--install|--uninstall}
-Install an OCR jobqueue based on DocTR in your K8s cluster
+    [-n namespace]
+Uninstall OCR job queue
 Available options:
 -h, --help              Print this help and exit
 -v, --verbose           Print script debug info
--i, --input-bucket      Storage bucket that keep input PDF,
-                        defaults to 'ocr-docs'
--o, --output-bucket     Storage bucket that keep OCR results,
-                        defaults to 'ocr-results'
--s, --service-account   Service account that will be created
+-i, --input-bucket      Also remove input bucket which was created during
+                        installation. Note that this also delete all data.
+-o, --output-bucket     Also remove output bucket which was created during
+                        installation. Note that this also delete all data.
+-s, --service-account   Service account that was created
                         to read and write to buckets, defaults
-                        to 'ocr-docs-admin'
--p, --project-id        Google cloud project id
---install               Install OCR jobqueue
---uninstall             Uninstall OCR jobqueue
+                        to 'k8s-ocr-jobqueue'
+-n, --namespace         Kubernetes namespace that was used during install,
+                        defaults to 'k8s-ocr-jobqueue'
 EOF
   exit
 }
@@ -66,20 +64,17 @@ check_executables() {
 
 parse_params() {
   # default values of variables set from params
-  input_bucket='ocr-docs'
-  output_bucket='ocr-results'
-  service_account='ocr-docs-admin'
-  install=0
-  uninstall=0
   project_id=''
+  input_bucket=''
+  output_bucket=''
+  service_account='k8s-ocr-jobqueue'
+  namespace='k8s-ocr-jobqueue'
 
   while :; do
 case "${1-}" in
 -h | --help) usage ;;
 -v | --verbose) set -x ;;
 --no-color) NO_COLOR=1 ;;
---install) install=1 ;;
---uninstall) uninstall=1 ;;
 -i | --input-bucket)
   input_bucket="${2-}"
   shift
@@ -92,8 +87,8 @@ case "${1-}" in
   service_account="${2-}"
   shift
   ;;
--p | --project-id)
-  project_id="${2-}"
+-n | --namespace)
+  namespace="${2-}"
   shift
   ;;
 -?*) die "Unknown option: " ;;
@@ -105,25 +100,29 @@ shift
   args=("$@")
 
   # check required params and arguments
-  [[ -z "${project_id-}" ]] && die "Missing required parameter: project_id"
-  [[ $install -eq 0 && $uninstall -eq 0 ]] && die "Must either use flag --install, or --uninstall"
+  [[ ${#args[@]} -ne 1 ]] && die "Wrong number of script arguments"
+
+  project_id="${args[0]}"
 
   return 0
+}
+
+uninstall() {
+    kubectl delete namespace $namespace
+    gcloud iam service-accounts delete \
+        $service_account@$project_id.iam.gserviceaccount.com
+    [[ ! -z "$input_bucket" ]] \
+        && gsutil notification delete gs://$input_bucket \
+        && gsutil rm -r gs://$input_bucket
+    [[ ! -z "$output_bucket" ]] \
+        && gsutil rm -r gs://$output_bucket
 }
 
 parse_params "$@"
 check_executables
 setup_colors
 
-if [[ $install -eq 1 ]]
-then
-  do_install
- 
-elif [[ $uninstall -eq 1 ]]
-then
-  do_uninstall
-
-fi
+uninstall
 
 msg "REDRead parameters:NOFORMAT"
 msg "- flag: flag"

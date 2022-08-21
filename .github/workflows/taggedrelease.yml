@@ -7,24 +7,6 @@ on:
       - "v[0-9]+.[0-9]+.[0-9]+"
 
 jobs:
-  test:
-    name: Test
-    strategy:
-      matrix:
-        go-version: [1.19.x]
-        os: [ubuntu-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - name: Install Go
-        uses: actions/setup-go@v2
-        with:
-          go-version: ${{ matrix.go-version }}
-      - name: Checkout code
-        uses: actions/checkout@v2
-      - name: Test all packages
-        run: |
-          go test ./...
-
   tagged-release:
     name: "Tagged Release"
     needs: test
@@ -41,7 +23,7 @@ jobs:
         uses: bluwy/substitute-string-action@v1
         id: sub-installer
         with:
-          _input-file: "./.github/workflows/template/install.sh"
+          _input-file: "./install.sh"
           _output-file: "./build/install.sh"
           _format-key: "%%key%%"
           version: "${{ steps.get_version.outputs.version }}"
@@ -52,4 +34,4 @@ jobs:
           files: |
             build/*.tar.gz
             build/install.sh
-            build/resources.yml
+            build/uninstall.sh

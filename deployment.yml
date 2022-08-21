@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: doctr
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: doctr
+  template:
+    metadata:
+      labels:
+        app: doctr
+    spec:
+      containers:
+        - name: doctr
+          image: doctr
+          env:
+            - name: GOOGLE_AUTH_CREDENTIALS
+              valueFrom:
+                secretKeyRef:
+                  name: service-account-key
+                  key: key.json
+          envFrom:
+            - configMapRef:
+                name: doctr-config
