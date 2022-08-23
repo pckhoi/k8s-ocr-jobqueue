@@ -138,7 +138,7 @@ class Predictor:
                 content = f.read()
             doc = DocumentFile.from_pdf(content)
             self.c.send((blob.name, predictor(doc)))
-            stackless.tasklet(blob.delete)()
+            blob.delete()
         self.c.close()
 
 
