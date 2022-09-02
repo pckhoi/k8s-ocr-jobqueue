@@ -1,4 +1,4 @@
-apiVersion: apps/v1
+apiVersion: batch/v1
 kind: Job
 metadata:
   name: doctr
@@ -22,3 +22,4 @@ spec:
         - name: service-account-key
           secret:
             secretName: service-account-key
+      restartPolicy: OnFailure

@@ -71,13 +71,6 @@ esac
 shift
   done
 
-  args=("$@")
-
-  # check required params and arguments
-  [[ ${#args[@]} -ne 1 ]] && die "Wrong number of script arguments"
-
-  project_id="${args[0]}"
-
   return 0
 }
 

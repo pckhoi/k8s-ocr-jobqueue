@@ -117,8 +117,8 @@ download_assets() {
   echo "Downloading assets..."
   tmp_dir=$(mktemp -d -t ci-XXXXXXXXXX)
   cd $tmp_dir
-  local assets_dir=installation-assets
-  local FILE=$assets_dir.tar.gz
+  assets_dir=$tmp_dir/installation-assets
+  local FILE=installation-assets.tar.gz
   local URL=https://github.com/pckhoi/k8s-ocr-jobqueue/releases/download/$version/$FILE
   echo "Downloading:" $URL
   curl -A "k8s-ocr-jobqueueu-installer" -fsL "$URL" > "$FILE"
@@ -157,12 +157,16 @@ push_image() {
 
 prepare_kustomize_dir() {
   echo 'Preparing kustomize manifests in directory "'$kustomize_dir'"...'
-  kubectl create namespace $namespace
+  kubectl create namespace $namespace --dry-run=client -o yaml | kubectl apply -f -
+  kubectl delete secret service-account-key \
+    -n $namespace  --ignore-not-found=true
   kubectl create secret generic service-account-key \
     -n $namespace \
     --from-file=key.json=$key_file
   mkdir -p $cwd/$kustomize_dir
   cd $cwd/$kustomize_dir
+  cp $assets_dir/kustomization.yml .
+  cp $assets_dir/job.yml .
   kustomize edit set image doctr=gcr.io/$project_id/doctr:$img_id
   kustomize edit add configmap doctr-config \
     --from-literal=SOURCE_BUCKET=$input_bucket \
@@ -174,16 +178,18 @@ prepare_scripts_dir() {
   mkdir -p $cwd/$scripts_dir
   cat $assets_dir/uninstall.sh \
     | sed 's/project_id=%%/project_id='$project_id'/; s/input_bucket=%%/input_bucket='$input_bucket'/; s/output_bucket=%%/output_bucket='$output_bucket'/; s/service_account=%%/service_account='$service_account'/; s/namespace=%%/namespace='$namespace'/' \
-    > $cwd/$scripts_dir/uninstall.sh
+    > $cwd/$scripts_dir/uninstall_k8s_ocr_jobqueue.sh
   cat $assets_dir/queue_pdf_for_ocr.py \
     | sed 's/SOURCE_BUCKET = ""/SOURCE_BUCKET = "'$input_bucket'"/; s/KUSTOMIZE_DIR = ""/KUSTOMIZE_DIR = "'$kustomize_dir'"/' \
     > $cwd/$scripts_dir/queue_pdf_for_ocr.py
+  chmod +x $cwd/$scripts_dir/uninstall_k8s_ocr_jobqueue.sh
+  chmod +x $cwd/$scripts_dir/queue_pdf_for_ocr.py
   echo "Installation finished!"
   echo "To start enqueuing PDF for OCR, run:"
   echo "    $scripts_dir/queue_pdf_for_ocr.py PDF_DIR [PDF_DIR...]"
   echo ""
   echo "To uninstall, run:"
-  echo "    $scripts_dir/uninstall.sh"
+  echo "    $scripts_dir/uninstall_k8s_ocr_jobqueue.sh"
 }
 
 parse_params "$@"

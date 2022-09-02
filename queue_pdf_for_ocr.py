@@ -4,6 +4,7 @@ import os
 import argparse
 import tempfile
 import subprocess
+import json
 
 from tqdm import tqdm
 import pypdfium2 as pdfium
@@ -36,7 +37,10 @@ if __name__ == "__main__":
                     filepath = os.path.join(root, file)
                     with pdfium.PdfDocument(filepath) as pdf:
                         for ind, img in enumerate(
-                            tqdm(pdf.render_topil(scale=2), desc="%s to images" % file)
+                            tqdm(
+                                pdf.render_topil(scale=2),
+                                desc="%s to images" % json.dumps(file),
+                            )
                         ):
                             img.save(
                                 os.path.join(
@@ -45,25 +49,23 @@ if __name__ == "__main__":
                                 "PNG",
                             )
         subprocess.run(
-            "gsutil",
-            "-m",
-            "rsync",
-            "-c",
-            "-i",
-            "-J",
-            "-r",
-            tmpdirname,
-            "gs://%s" % (SOURCE_BUCKET,),
+            [
+                "gsutil",
+                "-m",
+                "rsync",
+                "-c",
+                "-i",
+                "-J",
+                "-r",
+                tmpdirname,
+                "gs://%s" % (SOURCE_BUCKET,),
+            ],
             check=True,
         )
-        subprocess.run(
-            "kustomize",
-            "build",
-            KUSTOMIZE_DIR,
-            "|",
-            "kubectl",
-            "apply",
-            "-f",
-            "-",
-            shell=True,
-        )
+    subprocess.run(
+        [
+            "bash",
+            "-c",
+            "kustomize build %s | kubectl apply -f -" % KUSTOMIZE_DIR,
+        ],
+    )

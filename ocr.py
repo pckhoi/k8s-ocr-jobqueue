@@ -68,7 +68,7 @@ class Manager:
                 self._pages[pdf_name].pop(pageno, None)
 
         for pdf_name in list(self._pages.keys()):
-            for pageno, blob in self._pages[pdf_name]:
+            for blob in self._pages[pdf_name].values():
                 self.page_c.send(blob)
 
     def _cleanup_source_bucket(self):

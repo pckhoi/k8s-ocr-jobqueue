@@ -31,34 +31,6 @@ install.sh [-h] [-v] [-s SERVICE_ACCOUNT]
 | INPUT_BUCKET      |            | The bucket to store input PDF files                                                               |
 | OUTPUT_BUCKET     |            | The bucket to store OCR results as JSON files                                                     |
 
-## Uninstallation
-
-```bash
-curl -L https://github.com/pckhoi/k8s-ocr-jobqueue/releases/latest/download/uninstall.sh -o uninstall.sh
-chmod +x uninstall.sh
-./uninstall.sh -i INPUT_BUCKET -o OUTPUT_BUCKET PROJECT_ID
-```
-
-### Synopsis
-
-```
-uninstall.sh [-h] [-v] [-i INPUT_BUCKET] [-o OUTPUT_BUCKET]
-    [-s SERVICE_ACCOUNT] [-n NAMESPACE]
-    PROJECT_ID
-```
-
-### Arguments and Flags
-
-| Argument/Flag     | Short flag | Description                                                                          |
-| ----------------- | ---------- | ------------------------------------------------------------------------------------ |
-| --help            | -h         | Print help message and exit                                                          |
-| --verbose         | -v         | Print script debug info                                                              |
-| --input-bucket    | -i         | Remove input bucket. Note that this also delete all data.                            |
-| --output-bucket   | -o         | Remove output bucket. Note that this also delete all data.                           |
-| --service-account | -s         | Service account created to read and write to buckets, defaults to 'k8s-ocr-jobqueue' |
-| --namespace       | -n         | Kubernetes namespace that houses the jobqueue, defaults to 'k8s-ocr-jobqueue'        |
-| PROJECT_ID        |            | Google Cloud project id to remove the job queue from                                 |
-
 ## Check job queue status
 
 ```bash
