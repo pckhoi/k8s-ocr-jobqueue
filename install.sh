@@ -4,15 +4,19 @@ set -Eeuo pipefail
 trap cleanup SIGINT SIGTERM ERR EXIT
 
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)
+cwd=$(pwd -P)
 version=%%version%%
 declare -a executables=("gcloud" "gsutil" "kustomize" "docker" "curl" "kubectl")
 
 usage() {
   cat <<EOF
 Usage: $(basename "${BASH_SOURCE[0]}") [-h] [-v]
-    [-s service_account] [-n namespace] [-p poll_interval]
+    [-s service_account] [-n namespace]
+    [-S scripts_dir] [-k kustomize_dir]
     project_id input_bucket output_bucket
+
 Install an OCR jobqueue based on DocTR in your K8s cluster
+
 Available options:
 -h, --help              Print this help and exit
 -v, --verbose           Print script debug info
@@ -21,8 +25,10 @@ Available options:
                         to 'k8s-ocr-jobqueue'
 -n, --namespace         Kubernetes namespace to install this jobqueue,
                         defaults to 'k8s-ocr-jobqueue'
--p, --poll-interval     Number of seconds to wait before job queue poll
-                        for updates, defaults to 300
+-S, --scripts-dir       Save enqueue and uninstall scripts to this folder,
+                        defaults to 'scripts'
+-k, --kustomize-dir     Save kustomization manifests to this folder,
+                        defaults to 'k8s-ocr-jobqueue'
 EOF
   exit
 }
@@ -65,7 +71,8 @@ parse_params() {
   output_bucket=''
   service_account='k8s-ocr-jobqueue'
   namespace='k8s-ocr-jobqueue'
-  poll_interval=300
+  scripts_dir='scripts'
+  kustomize_dir='k8s-ocr-jobqueue'
 
   while :; do
 case "${1-}" in
@@ -80,8 +87,12 @@ case "${1-}" in
   namespace="${2-}"
   shift
   ;;
--p | --poll-interval)
-  poll_interval="${2-}"
+-S | --scripts-dir)
+  scripts_dir="${2-}"
+  shift
+  ;;
+-k | --kustomize-dir)
+  kustomize_dir="${2-}"
   shift
   ;;
 -?*) die "Unknown option: " ;;
@@ -93,7 +104,6 @@ shift
   args=("$@")
 
   # check required params and arguments
-  [[ $poll_interval != +([[:digit:]]) ]] && die "poll_interval must be integer"
   [[ ${#args[@]} -lt 3 ]] && die "Wrong number of script arguments: ${#args[@]} < 3"
 
   project_id="${args[0]}"
@@ -121,9 +131,6 @@ create_buckets() {
   gsutil mb -p $project_id gs://$input_bucket
   gsutil mb -p $project_id gs://$output_bucket
   gsutil iam ch allUsers:objectViewer gs://$output_bucket
-  gsutil notification create \
-    -t $input_bucket -f json \
-    -e OBJECT_FINALIZE gs://$input_bucket
 }
 
 create_service_account() {
@@ -133,9 +140,6 @@ create_service_account() {
     --description="Read/write OCR data to storage buckets" \
     --display-name="OCR docs admin" \
     --project $project_id
-  gcloud projects add-iam-policy-binding $project_id \
-    --member="serviceAccount:$service_account@$project_id.iam.gserviceaccount.com" \
-    --role="roles/pubsub.subscriber"
   gsutil iam ch \
     serviceAccount:$service_account@$project_id.iam.gserviceaccount.com:admin \
     gs://$input_bucket gs://$output_bucket
@@ -151,17 +155,35 @@ push_image() {
   docker push gcr.io/$project_id/doctr:$img_id
 }
 
-apply_k8s_resources() {
-  echo "Applying Kubernetes resources..."
-  kustomize edit set namespace $namespace
+prepare_kustomize_dir() {
+  echo 'Preparing kustomize manifests in directory "'$kustomize_dir'"...'
+  kubectl create namespace $namespace
+  kubectl create secret generic service-account-key \
+    -n $namespace \
+    --from-file=key.json=$key_file
+  mkdir -p $cwd/$kustomize_dir
+  cd $cwd/$kustomize_dir
   kustomize edit set image doctr=gcr.io/$project_id/doctr:$img_id
   kustomize edit add configmap doctr-config \
     --from-literal=SOURCE_BUCKET=$input_bucket \
-    --from-literal=SINK_BUCKET=$output_bucket \
-    --from-literal=POLL_INTERVAL=$poll_interval
-  kustomize edit add secret service-account-key --from-file=key.json=$key_file
-  kustomize build . | kubectl apply -f -
-  echo 'OCR resources installed in namespace "'$namespace'"'
+    --from-literal=SINK_BUCKET=$output_bucket
+}
+
+prepare_scripts_dir() {
+  echo 'Preparing scripts in directory "'$scripts_dir'"'
+  mkdir -p $cwd/$scripts_dir
+  cat $assets_dir/uninstall.sh \
+    | sed 's/project_id=%%/project_id='$project_id'/; s/input_bucket=%%/input_bucket='$input_bucket'/; s/output_bucket=%%/output_bucket='$output_bucket'/; s/service_account=%%/service_account='$service_account'/; s/namespace=%%/namespace='$namespace'/' \
+    > $cwd/$scripts_dir/uninstall.sh
+  cat $assets_dir/queue_pdf_for_ocr.py \
+    | sed 's/SOURCE_BUCKET = ""/SOURCE_BUCKET = "'$input_bucket'"/; s/KUSTOMIZE_DIR = ""/KUSTOMIZE_DIR = "'$kustomize_dir'"/' \
+    > $cwd/$scripts_dir/queue_pdf_for_ocr.py
+  echo "Installation finished!"
+  echo "To start enqueuing PDF for OCR, run:"
+  echo "    $scripts_dir/queue_pdf_for_ocr.py PDF_DIR [PDF_DIR...]"
+  echo ""
+  echo "To uninstall, run:"
+  echo "    $scripts_dir/uninstall.sh"
 }
 
 parse_params "$@"
@@ -172,4 +194,5 @@ download_assets
 create_buckets
 create_service_account
 push_image
-apply_k8s_resources
+prepare_kustomize_dir
+prepare_scripts_dir

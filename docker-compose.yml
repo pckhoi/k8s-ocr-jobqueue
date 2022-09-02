@@ -32,7 +32,7 @@ services:
       gcs_initializer:
         condition: service_completed_successfully
     volumes:
-      - ./jobqueue.py:/jobqueue.py
+      - ./ocr.py:/ocr.py
     environment:
       FAKE_GCS_SERVER: http://gcs:4443
       PROJECT_ID: test

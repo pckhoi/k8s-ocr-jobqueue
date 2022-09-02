@@ -54,6 +54,6 @@ ENV SSL_CERT_FILE /etc/ssl/certs/ca-certificates.crt
 
 RUN python3 -c "from doctr.models import ocr_predictor; ocr_predictor(pretrained=True)"
 
-ADD jobqueue.py /jobqueue.py
+ADD ocr.py /ocr.py
 
-CMD [ "python3", "/jobqueue.py" ]
+CMD [ "python3", "/ocr.py" ]
