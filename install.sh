@@ -13,6 +13,7 @@ usage() {
 Usage: $(basename "${BASH_SOURCE[0]}") [-h] [-v]
     [-s service_account] [-n namespace]
     [-S scripts_dir] [-k kustomize_dir]
+    [-t toleration_key:toleration_value]
     project_id input_bucket output_bucket
 
 Install an OCR jobqueue based on DocTR in your K8s cluster
@@ -29,6 +30,7 @@ Available options:
                         defaults to 'scripts'
 -k, --kustomize-dir     Save kustomization manifests to this folder,
                         defaults to 'k8s-ocr-jobqueue'
+-t, --toleration        Add pod toleration (key and value separated by colon)
 EOF
   exit
 }
@@ -73,6 +75,8 @@ parse_params() {
   namespace='k8s-ocr-jobqueue'
   scripts_dir='scripts'
   kustomize_dir='k8s-ocr-jobqueue'
+  toleration_key=''
+  toleration_value=''
 
   while :; do
 case "${1-}" in
@@ -93,6 +97,10 @@ case "${1-}" in
   ;;
 -k | --kustomize-dir)
   kustomize_dir="${2-}"
+  shift
+  ;;
+-t | --toleration)
+  IFS=: read -r toleration_key toleration_value <<< "${2-}"
   shift
   ;;
 -?*) die "Unknown option: " ;;
@@ -171,6 +179,24 @@ prepare_kustomize_dir() {
   kustomize edit add configmap doctr-config \
     --from-literal=SOURCE_BUCKET=$input_bucket \
     --from-literal=SINK_BUCKET=$output_bucket
+  [[ ! -z "$toleration_key" ]] && \
+    cat <<EOT >> kustomization.yml
+
+patchesStrategicMerge:
+- |-
+  apiVersion: batch/v1
+  kind: Job
+  metadata:
+    name: doctr
+  spec:
+    template:
+      spec:
+        tolerations:
+          - key: "$toleration_key"
+            operator: "Equal"
+            value: "$toleration_value"
+            effect: "NoSchedule"
+EOT
 }
 
 prepare_scripts_dir() {

@@ -13,8 +13,10 @@ chmod +x install.sh
 ### Synopsis
 
 ```
-install.sh [-h] [-v] [-s SERVICE_ACCOUNT]
-    [-n NAMESPACE] [-p POLL_INTERVAL]
+install.sh [-h] [-v]
+    [-s SERVICE_ACCOUNT] [-n NAMESPACE]
+    [-S SCRIPTS_DIR] [-k KUSTOMIZE_DIR]
+    [-t TOLERATION_KEY:TOLERATION_VALUE]
     PROJECT_ID INPUT_BUCKET OUTPUT_BUCKET
 ```
 
@@ -26,10 +28,20 @@ install.sh [-h] [-v] [-s SERVICE_ACCOUNT]
 | --verbose         | -v         | Print script debug info                                                                           |
 | --service-account | -s         | Service account that will be created to read and write to buckets, defaults to 'k8s-ocr-jobqueue' |
 | --namespace       | -n         | Kubernetes namespace to install this jobqueue, defaults to 'k8s-ocr-jobqueue'                     |
-| --poll-interval   | -p         | Number of seconds to wait before job queue poll for updates, defaults to 300                      |
+| --scripts-dir     | -S         | Save enqueue and uninstall scripts to this folder, defaults to 'scripts'                          |
+| --kustomize-dir   | -k         | Save kustomization manifests to this folder, defaults to 'k8s-ocr-jobqueue'                       |
+| --toleration      | -t         | Add pod toleration (key and value separated by colon)                                             |
 | PROJECT_ID        |            | Google Cloud project id to create buckets and service account under                               |
 | INPUT_BUCKET      |            | The bucket to store input PDF files                                                               |
 | OUTPUT_BUCKET     |            | The bucket to store OCR results as JSON files                                                     |
+
+## Queue PDFs for OCR processing
+
+After installation, a queue script and an uninstall script should be saved to `SCRIPTS_DIR`. To queue PDF files for processing:
+
+```
+scripts/queue_pdf_for_ocr.py PDF_DIR
+```
 
 ## Check job queue status
 
@@ -50,4 +62,10 @@ INFO - 2022-08-21 11:12:05,641 - saving ocr result raw_minutes/carencro/cfpcsb/A
 INFO - 2022-08-21 11:12:05,828 - inserting blob "raw_minutes/carencro/cfpcsb/Appeal-Posting-Notice-Conrad-Callegari-May-7-2019.pdf" (md5:3d4e3e42c8efcd97274fbdc5a6cd56e2)
 INFO - 2022-08-21 11:12:05,829 - processing blob "raw_minutes/carencro/cfpcsb/Appeal-Posting-Notice-Conrad-Callegari-May-7-2019.pdf" (md5:3d4e3e42c8efcd97274fbdc5a6cd56e2)
 ...
+```
+
+## Uninstallation
+
+```
+scripts/uninstall_k8s_ocr_jobqueue.sh
 ```

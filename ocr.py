@@ -173,7 +173,6 @@ class Sink:
             logger.info(
                 "saved ocr result %s to gs://%s" % (json.dumps(name), self._bucket_name)
             )
-            logger.info("blob path: %s" % blob.path)
             self._finished_page_c.send((pdf_name, pageno))
 
     @property

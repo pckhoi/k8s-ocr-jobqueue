@@ -29,8 +29,10 @@ if __name__ == "__main__":
 
     with tempfile.TemporaryDirectory() as tmpdirname:
         for path in args.paths:
+            path = path.rstrip("/")
+            head, _ = os.path.split(path)
             for root, _, files in os.walk(path):
-                relroot = os.path.relpath(root, path)
+                relroot = os.path.relpath(root, head)
                 for file in files:
                     if not file.endswith(".pdf"):
                         continue
@@ -39,29 +41,30 @@ if __name__ == "__main__":
                         for ind, img in enumerate(
                             tqdm(
                                 pdf.render_topil(scale=2),
-                                desc="%s to images" % json.dumps(file),
+                                desc="split %s to images" % json.dumps(file),
                             )
                         ):
-                            img.save(
+                            filepath = os.path.abspath(
                                 os.path.join(
-                                    tmpdirname, relroot, "%03d.png" % (ind + 1,)
-                                ),
-                                "PNG",
+                                    tmpdirname, relroot, file, "%03d.png" % (ind + 1,)
+                                )
                             )
-        subprocess.run(
-            [
-                "gsutil",
-                "-m",
-                "rsync",
-                "-c",
-                "-i",
-                "-J",
-                "-r",
-                tmpdirname,
-                "gs://%s" % (SOURCE_BUCKET,),
-            ],
-            check=True,
-        )
+                            os.makedirs(os.path.dirname(filepath), exist_ok=True)
+                            img.save(filepath, "PNG")
+            subprocess.run(
+                [
+                    "gsutil",
+                    "-m",
+                    "rsync",
+                    "-c",
+                    "-i",
+                    "-J",
+                    "-r",
+                    tmpdirname,
+                    "gs://%s" % (SOURCE_BUCKET,),
+                ],
+                check=True,
+            )
     subprocess.run(
         [
             "bash",
