@@ -28,12 +28,19 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     with tempfile.TemporaryDirectory() as tmpdirname:
-        for path in args.paths:
+        paths = args.paths
+        pos = 0
+        if len(paths) > 1:
+            paths = tqdm(paths, desc="pdf paths", position=0, leave=False)
+            pos = 1
+        for path in paths:
             path = path.rstrip("/")
             head, _ = os.path.split(path)
-            for root, _, files in os.walk(path):
+            for root, _, files in tqdm(
+                list(os.walk(path)), desc=path, position=pos, leave=False
+            ):
                 relroot = os.path.relpath(root, head)
-                for file in files:
+                for file in tqdm(files, desc=root, position=pos + 1, leave=False):
                     if not file.endswith(".pdf"):
                         continue
                     filepath = os.path.join(root, file)
@@ -41,7 +48,9 @@ if __name__ == "__main__":
                         for ind, img in enumerate(
                             tqdm(
                                 pdf.render_topil(scale=2),
-                                desc="split %s to images" % json.dumps(file),
+                                desc="splitting %s" % json.dumps(file),
+                                position=pos + 2,
+                                leave=False,
                             )
                         ):
                             filepath = os.path.abspath(
@@ -51,20 +60,20 @@ if __name__ == "__main__":
                             )
                             os.makedirs(os.path.dirname(filepath), exist_ok=True)
                             img.save(filepath, "PNG")
-            subprocess.run(
-                [
-                    "gsutil",
-                    "-m",
-                    "rsync",
-                    "-c",
-                    "-i",
-                    "-J",
-                    "-r",
-                    tmpdirname,
-                    "gs://%s" % (SOURCE_BUCKET,),
-                ],
-                check=True,
-            )
+        subprocess.run(
+            [
+                "gsutil",
+                "-m",
+                "rsync",
+                "-c",
+                "-i",
+                "-J",
+                "-r",
+                tmpdirname,
+                "gs://%s" % (SOURCE_BUCKET,),
+            ],
+            check=True,
+        )
     subprocess.run(
         [
             "bash",
