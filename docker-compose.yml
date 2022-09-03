@@ -22,9 +22,9 @@ services:
       && curl -X POST --data-binary @/fixtures/ocr_results_bucket.json \
         -H "Content-Type: application/json" \
         "http:/gcs:4443/storage/v1/b?project=test" \
-      && curl -X POST --data-binary @/fixtures/doc1.pdf \
+      && curl -X POST --data-binary @/fixtures/objects/doc1.pdf/001.png \
         -H "Content-Type: application/pdf" \
-        "http:/gcs:4443/upload/storage/v1/b/ocr-docs/o?uploadType=media&name=doc1.pdf"'
+        "http:/gcs:4443/upload/storage/v1/b/ocr-docs/o?uploadType=media&name=doc1.pdf/001.png"'
   doctr:
     build:
       context: .
@@ -37,14 +37,4 @@ services:
       FAKE_GCS_SERVER: http://gcs:4443
       PROJECT_ID: test
       SOURCE_BUCKET: ocr-docs
-      POLL_INTERVAL: '1'
       SINK_BUCKET: ocr-results
-  tester:
-    build:
-      context: .
-      dockerfile: bash.Dockerfile
-    depends_on:
-      - doctr
-    volumes:
-      - ./test-script.sh:/test-script.sh
-    command: /test-script.sh http://gcs:4443 ocr-docs ocr-results

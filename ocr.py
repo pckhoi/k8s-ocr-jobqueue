@@ -54,7 +54,7 @@ class Manager:
         self._cleanup_source_bucket_t()
 
     def _send_blobs(self):
-        logger.info("listing blobs from %s" % json.dumps(self._source_bucket))
+        logger.info("listing blobs from gs://%s" % self._source_bucket)
 
         for blob in self._client.list_blobs(self._source_bucket):
             pdf_name, page_file = os.path.split(blob.name)
@@ -68,7 +68,7 @@ class Manager:
                 self._pages[pdf_name].pop(pageno, None)
 
         for pdf_name in list(self._pages.keys()):
-            for blob in self._pages[pdf_name].values():
+            for blob in list(self._pages[pdf_name].values()):
                 self.page_c.send(blob)
 
     def _cleanup_source_bucket(self):
@@ -76,7 +76,7 @@ class Manager:
             self._pages[pdf_name].pop(pageno, None)
             if len(self._pages[pdf_name]) == 0:
                 logger.info(
-                    "dropping blobs with prefix %s from %s"
+                    "dropping blobs with prefix %s from gs://%s"
                     % (json.dumps(pdf_name), self._source_bucket)
                 )
                 for blob in self._client.list_blobs(
@@ -101,10 +101,7 @@ class Predictor:
     def _run(self):
         predictor = ocr_predictor(pretrained=True)
         for blob in self._blob_chan:
-            md5_hash = base64.b64decode(blob.md5_hash).hex()
-            logger.info(
-                "processing blob %s (md5:%s)" % (json.dumps(blob.name), md5_hash)
-            )
+            logger.info("processing blob %s" % (json.dumps(blob.name),))
             with blob.open("rb") as f:
                 content = f.read()
             doc = DocumentFile.from_images(content)
@@ -164,7 +161,6 @@ class Sink:
             name, _ = os.path.splitext(name)
             pdf_name, pageno = os.path.split(name)
             name = name + ".json"
-            logger.info("saving ocr result %s" % name)
             blob = self._client.bucket(self._bucket_name).blob(name)
             try:
                 blob.upload_from_string(
@@ -174,6 +170,10 @@ class Sink:
                 )
             except PreconditionFailed:
                 pass
+            logger.info(
+                "saved ocr result %s to gs://%s" % (json.dumps(name), self._bucket_name)
+            )
+            logger.info("blob path: %s" % blob.path)
             self._finished_page_c.send((pdf_name, pageno))
 
     @property
