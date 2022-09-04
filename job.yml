@@ -18,6 +18,10 @@ spec:
             - name: service-account-key
               mountPath: "/etc/service_account"
               readOnly: true
+          resources:
+            requests:
+              memory: 4Gi
+              cpu: "1"
       volumes:
         - name: service-account-key
           secret:
