@@ -136,15 +136,16 @@ download_assets() {
 
 create_buckets() {
   echo "Creating buckets..."
-  gsutil mb -p $project_id gs://$input_bucket
-  gsutil mb -p $project_id gs://$output_bucket
+  gsutil ls -b -p $project_id gs://$input_bucket || gsutil mb -p $project_id gs://$input_bucket
+  gsutil ls -b -p $project_id gs://$output_bucket || gsutil mb -p $project_id gs://$output_bucket
   gsutil iam ch allUsers:objectViewer gs://$output_bucket
 }
 
 create_service_account() {
   echo "Creating service account..."
   key_file=key.json
-  gcloud iam service-accounts create $service_account \
+  gcloud iam service-accounts describe $service_account@$project_id.iam.gserviceaccount.com \
+    || gcloud iam service-accounts create $service_account \
     --description="Read/write OCR data to storage buckets" \
     --display-name="OCR docs admin" \
     --project $project_id
