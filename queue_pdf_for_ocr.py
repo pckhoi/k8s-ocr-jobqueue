@@ -5,6 +5,7 @@ import argparse
 import tempfile
 import subprocess
 import json
+from typing import List
 
 from tqdm import tqdm
 import pypdfium2 as pdfium
@@ -14,21 +15,8 @@ SOURCE_BUCKET = ""
 KUSTOMIZE_DIR = ""
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Enqueue PDF files for OCR processing."
-    )
-    parser.add_argument(
-        "paths",
-        metavar="PATH",
-        type=str,
-        nargs="+",
-        help="a path that contain PDF files to be enqueued. Files that already exist in the queue will be ignored.",
-    )
-    args = parser.parse_args()
-
+def queue_pdf_for_ocr(paths: List[str]) -> None:
     with tempfile.TemporaryDirectory() as tmpdirname:
-        paths = args.paths
         pos = 0
         if len(paths) > 1:
             paths = tqdm(paths, desc="pdf paths", position=0, leave=False)
@@ -45,6 +33,10 @@ if __name__ == "__main__":
                         continue
                     filepath = os.path.join(root, file)
                     with pdfium.PdfDocument(filepath) as pdf:
+                        pdf_dir = os.path.abspath(
+                            os.path.join(tmpdirname, relroot, file)
+                        )
+                        os.makedirs(pdf_dir, exist_ok=True)
                         for ind, img in enumerate(
                             tqdm(
                                 pdf.render_topil(scale=2),
@@ -53,13 +45,11 @@ if __name__ == "__main__":
                                 leave=False,
                             )
                         ):
-                            filepath = os.path.abspath(
-                                os.path.join(
-                                    tmpdirname, relroot, file, "%03d.png" % (ind + 1,)
-                                )
+                            img.save(
+                                os.path.join(pdf_dir, "%03d.png" % (ind + 1,)), "PNG"
                             )
-                            os.makedirs(os.path.dirname(filepath), exist_ok=True)
-                            img.save(filepath, "PNG")
+                        with open(os.path.join(pdf_dir, "count"), "w") as f:
+                            f.write(ind + 1)
         subprocess.run(
             [
                 "gsutil",
@@ -82,3 +72,19 @@ if __name__ == "__main__":
             % (KUSTOMIZE_DIR, KUSTOMIZE_DIR),
         ],
     )
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Enqueue PDF files for OCR processing."
+    )
+    parser.add_argument(
+        "paths",
+        metavar="PATH",
+        type=str,
+        nargs="+",
+        help="a path that contain PDF files to be enqueued. Files that already exist in the queue will be ignored.",
+    )
+    args = parser.parse_args()
+
+    queue_pdf_for_ocr(args.paths)

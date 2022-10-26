@@ -45,22 +45,27 @@ class Manager:
         self._pages = dict()
         self.page_c = stackless.channel(100)
         self._finished_page_c = finished_page_c
-        self._send_blobs_t = stackless.tasklet(self._send_blobs)
+        self.copy_blob_c = stackless.channel(100)
+        self._send_blobs_t = stackless.tasklet(self._fetch_pdf_pages)
         self._send_blobs_t()
         self._cleanup_source_bucket_t = stackless.tasklet(self._cleanup_source_bucket)
         self._cleanup_source_bucket_t()
 
-    def _send_blobs(self):
+    def _fetch_pdf_pages(self):
         logger.info("listing blobs from gs://%s" % self._source_bucket)
 
         for blob in self._client.list_blobs(self._source_bucket):
             pdf_name, page_file = os.path.split(blob.name)
             pageno, _ = os.path.splitext(page_file)
+            if pageno == "count":
+                self.copy_blob_c.send(blob)
             self._pages.setdefault(pdf_name, dict())[pageno] = blob
 
         for blob in self._client.list_blobs(self._sink_bucket):
             pdf_name, page_file = os.path.split(blob.name)
             pageno, _ = os.path.splitext(page_file)
+            if pageno == "count":
+                continue
             if pdf_name in self._pages:
                 self._pages[pdf_name].pop(pageno, None)
 
@@ -87,6 +92,7 @@ class Manager:
         self._send_blobs_t.kill()
         self._cleanup_source_bucket_t.kill()
         self.page_c.close()
+        self.copy_blob_c.close()
 
 
 class Predictor:
@@ -145,20 +151,33 @@ def serialize_document(doc):
 
 
 class Sink:
-    def __init__(self, client, bucket_name, ocr_result_chan, finished_page_c):
+    def __init__(
+        self,
+        client,
+        source_bucket,
+        sink_bucket,
+        ocr_result_chan,
+        finished_page_c,
+        copy_blob_c,
+    ):
         self._result_chan = ocr_result_chan
         self._client = client
-        self._bucket_name = bucket_name
+        self._source_bucket = source_bucket
+        self._sink_bucket = sink_bucket
         self._finished_page_c = finished_page_c
-        self._t = stackless.tasklet(self._run)
-        self._t()
+        self._copy_blob_c = copy_blob_c
+        self._save_processed_pages_t = stackless.tasklet(self._save_processed_pages)
+        self._save_processed_pages_t()
+        self._copy_blobs_t = stackless.tasklet(self._copy_blobs)
+        self._copy_blobs_t()
 
-    def _run(self):
+    def _save_processed_pages(self):
+        bucket = self._client.bucket(self._sink_bucket)
         for name, result in self._result_chan:
             name, _ = os.path.splitext(name)
             pdf_name, pageno = os.path.split(name)
             name = name + ".json"
-            blob = self._client.bucket(self._bucket_name).blob(name)
+            blob = bucket.blob(name)
             try:
                 blob.upload_from_string(
                     json.dumps(serialize_document(result)),
@@ -168,13 +187,23 @@ class Sink:
             except PreconditionFailed:
                 pass
             logger.info(
-                "saved ocr result %s to gs://%s" % (json.dumps(name), self._bucket_name)
+                "saved ocr result %s to gs://%s" % (json.dumps(name), self._sink_bucket)
             )
             self._finished_page_c.send((pdf_name, pageno))
 
+    def _copy_blobs(self):
+        source = self._client.bucket(self._source_bucket)
+        sink = self._client.bucket(self._sink_bucket)
+        for blob in self._copy_blob_c:
+            try:
+                source.copy_blob(blob, sink, blob.name, if_generation_match=0)
+            except PreconditionFailed:
+                pass
+            logger.info(f"copied blob {blob.name} to gs://{self._sink_bucket}")
+
     @property
     def is_alive(self):
-        return self._t.alive
+        return self._save_processed_pages_t.alive
 
 
 class FakeServerSession(Session):
@@ -204,7 +233,14 @@ if __name__ == "__main__":
     sink_bucket = os.environ["SINK_BUCKET"]
     manager = Manager(client, source_bucket, sink_bucket, finished_page_c)
     predictor = Predictor(manager.page_c)
-    sink = Sink(client, sink_bucket, predictor.c, finished_page_c)
+    sink = Sink(
+        client,
+        source_bucket,
+        sink_bucket,
+        predictor.c,
+        finished_page_c,
+        manager.copy_blob_c,
+    )
 
     def _stop():
         logger.info("received stop signal, cleaning up")
