@@ -15,12 +15,11 @@ SOURCE_BUCKET = ""
 KUSTOMIZE_DIR = ""
 
 
-def queue_pdf_for_ocr(paths: List[str]) -> None:
+def run(paths: List[str], pos=0) -> None:
     with tempfile.TemporaryDirectory() as tmpdirname:
-        pos = 0
         if len(paths) > 1:
-            paths = tqdm(paths, desc="pdf paths", position=0, leave=False)
-            pos = 1
+            paths = tqdm(paths, desc="pdf paths", position=pos, leave=False)
+            pos += 1
         for path in paths:
             path = path.rstrip("/")
             head, _ = os.path.split(path)
@@ -32,6 +31,8 @@ def queue_pdf_for_ocr(paths: List[str]) -> None:
                     if not file.endswith(".pdf"):
                         continue
                     filepath = os.path.join(root, file)
+                    if os.path.islink(filepath):
+                        filepath = os.readlink(filepath)
                     with pdfium.PdfDocument(filepath) as pdf:
                         pdf_dir = os.path.abspath(
                             os.path.join(tmpdirname, relroot, file)
@@ -49,7 +50,7 @@ def queue_pdf_for_ocr(paths: List[str]) -> None:
                                 os.path.join(pdf_dir, "%03d.png" % (ind + 1,)), "PNG"
                             )
                         with open(os.path.join(pdf_dir, "count"), "w") as f:
-                            f.write(ind + 1)
+                            f.write(str(ind + 1))
         subprocess.run(
             [
                 "gsutil",
@@ -68,8 +69,7 @@ def queue_pdf_for_ocr(paths: List[str]) -> None:
         [
             "bash",
             "-c",
-            "kustomize build %s | kubectl delete -f -; kustomize build %s | kubectl apply -f -"
-            % (KUSTOMIZE_DIR, KUSTOMIZE_DIR),
+            f"kubectl kustomize {KUSTOMIZE_DIR} | kubectl apply -f -",
         ],
     )
 
@@ -87,4 +87,4 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    queue_pdf_for_ocr(args.paths)
+    run(args.paths)

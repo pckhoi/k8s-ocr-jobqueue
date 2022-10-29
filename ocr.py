@@ -59,6 +59,7 @@ class Manager:
             pageno, _ = os.path.splitext(page_file)
             if pageno == "count":
                 self.copy_blob_c.send(blob)
+                continue
             self._pages.setdefault(pdf_name, dict())[pageno] = blob
 
         for blob in self._client.list_blobs(self._sink_bucket):
