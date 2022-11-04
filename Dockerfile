@@ -1,4 +1,4 @@
-FROM debian:bullseye-slim
+FROM python:3.9-bullseye
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -30,14 +30,6 @@ RUN apt-get update \
     && apt-get autoremove -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
-
-ADD http://www.stackless.com/binaries/stackless-379-export.tar.xz /tmp/stackless-379-export.tar.xz
-
-RUN tar -xf /tmp/stackless-379-export.tar.xz -C /tmp \
-    && cd /tmp/stackless-379-export \
-    && ./configure --prefix=/usr/local/ \
-    && make all \
-    && make install
 
 ENV PYTHONUNBUFFERED 1
 ENV PYTHONDONTWRITEBYTECODE 1
