@@ -76,27 +76,6 @@ class Manager:
             for blob in list(self._pages[pdf_name].values()):
                 yield (pdf_name, blob)
 
-    def cleanup_source_bucket(self, finished_pages):
-        for pdf_name, pageno in finished_pages:
-            if pageno is None:
-                for blob in self._client.list_blobs(
-                    self._source_bucket, prefix=pdf_name
-                ):
-                    blob.delete()
-                self._pages.pop(pdf_name, None)
-
-            self._pages[pdf_name].pop(pageno, None)
-            if len(self._pages[pdf_name]) == 0:
-                logger.info(
-                    "dropping blobs with prefix %s from gs://%s"
-                    % (json.dumps(pdf_name), self._source_bucket)
-                )
-                for blob in self._client.list_blobs(
-                    self._source_bucket, prefix=pdf_name
-                ):
-                    blob.delete()
-                self._pages.pop(pdf_name, None)
-
     def process_pdf_pages(self, pdf_pages):
         predictor = ocr_predictor(pretrained=True)
         for pdf_name, blob in pdf_pages:
@@ -129,6 +108,25 @@ class Manager:
                 "saved ocr result %s to gs://%s" % (json.dumps(name), self._sink_bucket)
             )
             yield (pdf_name, pageno)
+
+    def _drop_pdf(self, pdf_name):
+        logger.info(
+            "dropping blobs with prefix %s from gs://%s"
+            % (json.dumps(pdf_name), self._source_bucket)
+        )
+        for blob in self._client.list_blobs(self._source_bucket, prefix=pdf_name):
+            blob.delete()
+        self._pages.pop(pdf_name, None)
+
+    def cleanup_source_bucket(self, finished_pages):
+        for pdf_name, pageno in finished_pages:
+            if pageno is None:
+                self._drop_pdf(pdf_name)
+                continue
+
+            self._pages[pdf_name].pop(pageno, None)
+            if len(self._pages[pdf_name]) == 0:
+                self._drop_pdf(pdf_name)
 
 
 def serialize_document(doc):
