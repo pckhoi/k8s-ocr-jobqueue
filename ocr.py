@@ -55,7 +55,6 @@ class Manager:
         logger.info("listing blobs from gs://%s" % self._source_bucket)
 
         for blob in self._client.list_blobs(self._source_bucket):
-            logger.info(f"found blob from source bucket {blob.name}")
             pdf_name, page_file = os.path.split(blob.name)
             pageno, _ = os.path.splitext(page_file)
             if pageno == "count":
@@ -69,15 +68,23 @@ class Manager:
             if pageno == "count":
                 continue
             if pdf_name in self._pages:
-                logger.info(f"blob found is sink bucket page {pageno} of {pdf_name}")
                 self._pages[pdf_name].pop(pageno, None)
 
         for pdf_name in list(self._pages.keys()):
+            if len(self._pages[pdf_name]) == 0:
+                yield (pdf_name, None)
             for blob in list(self._pages[pdf_name].values()):
-                yield blob
+                yield (pdf_name, blob)
 
     def cleanup_source_bucket(self, finished_pages):
         for pdf_name, pageno in finished_pages:
+            if pageno is None:
+                for blob in self._client.list_blobs(
+                    self._source_bucket, prefix=pdf_name
+                ):
+                    blob.delete()
+                self._pages.pop(pdf_name, None)
+
             self._pages[pdf_name].pop(pageno, None)
             if len(self._pages[pdf_name]) == 0:
                 logger.info(
@@ -92,18 +99,22 @@ class Manager:
 
     def process_pdf_pages(self, pdf_pages):
         predictor = ocr_predictor(pretrained=True)
-        for blob in pdf_pages:
+        for pdf_name, blob in pdf_pages:
+            if blob is None:
+                yield (pdf_name, None, None)
             logger.info("processing blob %s" % (json.dumps(blob.name),))
             with blob.open("rb") as f:
                 content = f.read()
             doc = DocumentFile.from_images(content)
-            yield (blob.name, predictor(doc))
+            yield (pdf_name, blob.name, predictor(doc))
 
     def save_processed_pages(self, processed_pages):
         bucket = self._client.bucket(self._sink_bucket)
-        for name, result in processed_pages:
+        for pdf_name, name, result in processed_pages:
+            if name is None:
+                yield (pdf_name, None)
             name, _ = os.path.splitext(name)
-            pdf_name, pageno = os.path.split(name)
+            _, pageno = os.path.split(name)
             name = name + ".json"
             blob = bucket.blob(name)
             try:

@@ -188,7 +188,7 @@ prepare_kustomize_dir() {
   kustomize edit add configmap doctr-config \
     --from-literal=SOURCE_BUCKET=$input_bucket \
     --from-literal=SINK_BUCKET=$output_bucket
-  [[ ! -z "$toleration_key" ]] || [[ ! -z "$nodeselector_key" ]] && \
+  ( [[ ! -z "$toleration_key" ]] || [[ ! -z "$nodeselector_key" ]] ) && \
     cat <<EOT >> kustomization.yml
 
 patchesStrategicMerge:
@@ -201,6 +201,11 @@ patchesStrategicMerge:
     template:
       spec:
 EOT
+  [[ ! -z "$nodeselector_key" ]] && \
+    cat <<EOT >> kustomization.yml
+        nodeSelector:
+          $nodeselector_key: "$nodeselector_value"
+EOT
   [[ ! -z "$toleration_key" ]] && \
     cat <<EOT >> kustomization.yml
         tolerations:
@@ -208,11 +213,6 @@ EOT
             operator: "Equal"
             value: "$toleration_value"
             effect: "NoSchedule"
-EOT
-  [[ ! -z "$nodeselector_key" ]] && \
-    cat <<EOT >> kustomization.yml
-        nodeSelector:
-          $nodeselector_key: "$nodeselector_value"
 EOT
 }
 
