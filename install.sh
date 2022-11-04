@@ -13,6 +13,7 @@ usage() {
 Usage: $(basename "${BASH_SOURCE[0]}") [-h] [-v]
     [-s service_account] [-n namespace]
     [-S scripts_dir] [-k kustomize_dir]
+    [-N node_selector:value]
     [-t toleration_key:toleration_value]
     project_id input_bucket output_bucket
 
@@ -31,6 +32,7 @@ Available options:
 -k, --kustomize-dir     Save kustomization manifests to this folder,
                         defaults to 'k8s-ocr-jobqueue'
 -t, --toleration        Add pod toleration (key and value separated by colon)
+-N, --node-selector     Add pod nodeSelector (key and value separated by colon)
 EOF
   exit
 }
@@ -77,6 +79,8 @@ parse_params() {
   kustomize_dir='k8s-ocr-jobqueue'
   toleration_key=''
   toleration_value=''
+  nodeselector_key=''
+  nodeselector_value=''
 
   while :; do
 case "${1-}" in
@@ -101,6 +105,10 @@ case "${1-}" in
   ;;
 -t | --toleration)
   IFS=: read -r toleration_key toleration_value <<< "${2-}"
+  shift
+  ;;
+-N | --node-selector)
+  IFS=: read -r nodeselector_key nodeselector_value <<< "${2-}"
   shift
   ;;
 -?*) die "Unknown option: " ;;
@@ -180,7 +188,7 @@ prepare_kustomize_dir() {
   kustomize edit add configmap doctr-config \
     --from-literal=SOURCE_BUCKET=$input_bucket \
     --from-literal=SINK_BUCKET=$output_bucket
-  [[ ! -z "$toleration_key" ]] && \
+  [[ ! -z "$toleration_key" ]] || [[ ! -z "$nodeselector_key" ]] && \
     cat <<EOT >> kustomization.yml
 
 patchesStrategicMerge:
@@ -192,11 +200,19 @@ patchesStrategicMerge:
   spec:
     template:
       spec:
+EOT
+  [[ ! -z "$toleration_key" ]] && \
+    cat <<EOT >> kustomization.yml
         tolerations:
           - key: "$toleration_key"
             operator: "Equal"
             value: "$toleration_value"
             effect: "NoSchedule"
+EOT
+  [[ ! -z "$nodeselector_key" ]] && \
+    cat <<EOT >> kustomization.yml
+        nodeSelector:
+          $nodeselector_key: "$nodeselector_value"
 EOT
 }
 

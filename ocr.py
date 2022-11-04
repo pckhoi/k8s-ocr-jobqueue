@@ -55,6 +55,7 @@ class Manager:
         logger.info("listing blobs from gs://%s" % self._source_bucket)
 
         for blob in self._client.list_blobs(self._source_bucket):
+            logger.info(f"found blob from source bucket {blob.name}")
             pdf_name, page_file = os.path.split(blob.name)
             pageno, _ = os.path.splitext(page_file)
             if pageno == "count":
@@ -68,6 +69,7 @@ class Manager:
             if pageno == "count":
                 continue
             if pdf_name in self._pages:
+                logger.info(f"blob found is sink bucket page {pageno} of {pdf_name}")
                 self._pages[pdf_name].pop(pageno, None)
 
         for pdf_name in list(self._pages.keys()):
